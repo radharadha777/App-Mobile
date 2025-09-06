@@ -8,7 +8,6 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
@@ -20,14 +19,16 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
+    - name: Fix Gradlew Permissions
+      run: |
+        dos2unix gradlew
+        chmod +x gradlew
 
     - name: Build with Gradle
       run: ./gradlew build
 
     - name: Upload APK
-      uses: actions/upload-artifact@v4   # 👈 यहां v4 जरूरी है
+      uses: actions/upload-artifact@v4
       with:
         name: app-release
         path: app/build/outputs/apk/debug/app-debug.apk
