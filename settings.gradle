@@ -1,0 +1,2 @@
+rootProject.name = "VPSMonitor"
+include ':app'
