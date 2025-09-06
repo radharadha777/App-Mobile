@@ -1,0 +1,16 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical" android:padding="16dp"
+    android:layout_width="match_parent" android:layout_height="match_parent">
+
+    <EditText android:id="@+id/ipBox" android:hint="Enter VPS IP" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+    <EditText android:id="@+id/portBox" android:hint="Enter Port" android:inputType="number" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+    <EditText android:id="@+id/passBox" android:hint="Enter Password" android:inputType="textPassword" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+
+    <Button android:id="@+id/saveBtn" android:text="Save" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+    <Button android:id="@+id/fetchBtn" android:text="Fetch Metrics" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+
+    <TextView android:id="@+id/cpuView" android:text="CPU:" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+    <TextView android:id="@+id/ramView" android:text="RAM:" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+    <TextView android:id="@+id/diskView" android:text="Disk:" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+    <TextView android:id="@+id/contView" android:text="Containers:" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+</LinearLayout>
