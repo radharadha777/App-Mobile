@@ -1,0 +1,37 @@
+{
+  "blocks": [
+    {
+      "when":"Screen1.Initialize",
+      "do":[
+        {"set":"txtIp.Text","to":{"call":"TinyDB1.GetValue","tag":"ip","valueIfTagNotThere":""}},
+        {"set":"txtPort.Text","to":{"call":"TinyDB1.GetValue","tag":"port","valueIfTagNotThere":"5000"}},
+        {"set":"txtPassword.Text","to":{"call":"TinyDB1.GetValue","tag":"password","valueIfTagNotThere":""}}
+      ]
+    },
+    {
+      "when":"btnSave.Click",
+      "do":[
+        {"call":"TinyDB1.StoreValue","tag":"ip","value":"txtIp.Text"},
+        {"call":"TinyDB1.StoreValue","tag":"port","value":"txtPort.Text"},
+        {"call":"TinyDB1.StoreValue","tag":"password","value":"txtPassword.Text"}
+      ]
+    },
+    {
+      "when":"btnFetch.Click",
+      "do":[
+        {"set":"Web1.Url","to":"http://"+ "txtIp.Text" + ":" + "txtPort.Text" + "/metrics?password=" + "txtPassword.Text"},
+        {"call":"Web1.Get"}
+      ]
+    },
+    {
+      "when":"Web1.GotText",
+      "do":[
+        {"set":"metrics","to":{"call":"JsonTextDecodeWithDictionaries","json":"responseContent"}},
+        {"set":"lblCPU.Text","to":"CPU: "+ "metrics.cpu_percent"},
+        {"set":"lblRAM.Text","to":"RAM: "+ "metrics.memory.used"+" / "+ "metrics.memory.total"},
+        {"set":"lblDisk.Text","to":"Disk: "+ "metrics.disk.used"+" / "+ "metrics.disk.total"},
+        {"set":"lblContainers.Text","to":"Containers: "+ "metrics.containers"}
+      ]
+    }
+  ]
+}
