@@ -13,7 +13,6 @@ jobs:
         run: |
           sudo apt update -y
           sudo apt install -y curl unzip net-tools sshpass
-          # Install Docker using official script to avoid conflicts
           curl -fsSL https://get.docker.com -o get-docker.sh
           sudo sh get-docker.sh
           sudo usermod -aG docker $USER
@@ -43,9 +42,9 @@ jobs:
 
       - name: Run Playit Installer Script
         run: |
-          sshpass -p root ssh -o StrictHostKeyChecking=no -p 2222 root@localhost bash <<'EOF'
+          sshpass -p root ssh -o StrictHostKeyChecking=no -p 2222 root@localhost <<'PLAYIT'
 bash <(curl -fsSL https://raw.githubusercontent.com/hopingboyz/playit/main/playit.sh)
-EOF
+PLAYIT
 
       - name: Show VPS & Playit Logs
         run: |
