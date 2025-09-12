@@ -1,4 +1,4 @@
-name: Free VM with Playit Tunnel
+name: Free VM with sshx.io
 
 on:
   workflow_dispatch:
@@ -22,12 +22,7 @@ jobs:
           sudo systemctl restart ssh
           echo "✅ Root user enabled with password 'root'"
 
-      - name: Download Playit
+      - name: Start SSHx (Browser SSH)
         run: |
-          wget https://github.com/playit-cloud/playit-agent/releases/latest/download/playit-linux-amd64
-          chmod +x playit-linux-amd64
-
-      - name: Get Playit Claim URL
-        run: |
-          echo "==== Tunnel Claim URL ===="
-          ./playit-linux-amd64 claim url
+          echo "==== Starting sshx.io session ===="
+          curl -sSf https://sshx.io/get | sh -s run
