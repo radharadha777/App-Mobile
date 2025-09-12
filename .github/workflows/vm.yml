@@ -1,4 +1,4 @@
-name: Ubuntu 22 VM with sshx.io
+name: Ubuntu 22.04 VM with sshx.io (Root)
 
 on:
   workflow_dispatch:
@@ -9,80 +9,35 @@ jobs:
     timeout-minutes: 360
 
     steps:
-      - name: Install Dependencies
+      - name: Install QEMU & Tools
         run: |
           sudo apt update -y
-          sudo apt install -y qemu-kvm qemu-utils cloud-image-utils \
-            curl wget unzip git vim net-tools iproute2 iputils-ping \
-            python3 python3-pip build-essential ca-certificates ufw
+          sudo apt install -y qemu-kvm qemu-utils curl wget
 
-      - name: Setup VM Image
+      - name: Download Ubuntu 22.04 Image
         run: |
           mkdir -p $HOME/vm && cd $HOME/vm
-          wget -q https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img -O ubuntu-cloud.img
-          qemu-img resize ubuntu-cloud.img 30G
+          wget -q https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img -O ubuntu22.img
+          qemu-img resize ubuntu22.img 20G
 
-          cat > user-data <<'EOF'
-#cloud-config
-hostname: ubuntu22
-manage_etc_hosts: true
-disable_root: false
-ssh_pwauth: true
-chpasswd:
-  list: |
-    root:root
-  expire: false
-packages:
-  - curl
-  - wget
-  - unzip
-  - git
-  - vim
-  - net-tools
-  - iproute2
-  - iputils-ping
-  - python3
-  - python3-pip
-  - build-essential
-  - ca-certificates
-  - ufw
-runcmd:
-  - ufw allow OpenSSH
-  - ufw allow 80
-  - ufw allow 443
-  - ufw --force enable
-  - sed -ri "s/^#?PermitRootLogin.*/PermitRootLogin yes/" /etc/ssh/sshd_config
-  - systemctl restart ssh
-  - curl -sSf https://sshx.io/get | sh -s run > /root/sshx.log 2>&1 &
-EOF
-
-          cat > meta-data <<'EOF'
-instance-id: iid-local01
-local-hostname: ubuntu22
-EOF
-
-          cloud-localds seed.iso user-data meta-data
-
-      - name: Start VM
+      - name: Start VM with sshx.io
         run: |
           cd $HOME/vm
           nohup qemu-system-x86_64 \
             -enable-kvm \
             -m 4096 \
-            -smp 4 \
+            -smp 2 \
             -cpu host \
-            -drive file=ubuntu-cloud.img,format=qcow2,if=virtio \
-            -drive file=seed.iso,format=raw,if=virtio \
-            -boot order=c \
-            -device virtio-net-pci,netdev=n0 \
+            -drive file=ubuntu22.img,format=qcow2,if=virtio \
             -netdev user,id=n0,hostfwd=tcp::2222-:22 \
+            -device virtio-net-pci,netdev=n0 \
             -nographic -serial mon:stdio > vm.log 2>&1 &
-          sleep 90
-          echo "✅ VM started (sshx.io running inside)."
+          
+          # Wait for VM
+          sleep 60
 
-      - name: Show sshx URL
-        run: |
-          echo "==== sshx.io session URL ===="
-          grep -m1 "https://sshx.io" $HOME/vm/ubuntu-cloud.img || true
-          grep -m1 "https://sshx.io" $HOME/vm/vm.log || true
-          echo "=============================="
+          echo "==== Starting sshx.io inside root ===="
+          cd /root
+          curl -sSf https://sshx.io/get | sh -s run > /root/sshx.log 2>&1 &
+          sleep 5
+          echo "✅ sshx.io running (check /root/sshx.log for URL)"
