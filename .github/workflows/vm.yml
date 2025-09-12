@@ -1,4 +1,4 @@
-name: Playit VPS with SSH Access & Public Link
+name: Playit VPS with Public Link
 
 on:
   workflow_dispatch:
@@ -6,54 +6,29 @@ on:
 jobs:
   playit-vps:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 60
 
     steps:
       - name: Install Dependencies & Docker
         run: |
           sudo apt update -y
-          sudo apt install -y curl unzip net-tools sshpass
+          sudo apt install -y curl unzip
           curl -fsSL https://get.docker.com -o get-docker.sh
           sudo sh get-docker.sh
-          sudo usermod -aG docker $USER
           docker --version
 
-      - name: Start Ubuntu Container (VPS)
+      - name: Start Ubuntu Container & Run Playit
         run: |
           docker pull ubuntu:22.04
-          docker run -d --name vps-playit \
-            -p 2222:22 \
-            --hostname ubuntu-vps \
-            ubuntu:22.04 \
-            bash -c "apt update -y && apt install -y openssh-server sudo wget unzip && \
-                     mkdir /var/run/sshd && echo 'root:root' | chpasswd && \
-                     sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
-                     /usr/sbin/sshd -D"
-
-      - name: Wait for SSH to be Ready
-        run: |
-          echo "Waiting for SSH..."
-          for i in {1..30}; do
-            nc -zv localhost 2222 && break
-            echo "SSH not ready, retrying ($i/30)..."
-            sleep 5
-          done
-          echo "✅ SSH ready at root@localhost:2222 (password: root)"
-
-      - name: Run Playit Installer Script & Extract Public Link
-        run: |
-          sshpass -p root ssh -o StrictHostKeyChecking=no -p 2222 root@localhost bash -c "\
+          docker run --rm --name playit-container ubuntu:22.04 bash -c "\
+            apt update -y && apt install -y wget unzip curl && \
             bash <(curl -fsSL https://raw.githubusercontent.com/hopingboyz/playit/main/playit.sh) && \
             sleep 10 && \
             URL=\$(grep -oE 'https://playit.gg/[A-Za-z0-9]+' /root/playit.log | head -n1) && \
-            if [ -n \"\$URL\" ]; then \
-              echo '✅ Playit Public Link: ' \$URL; \
-            else \
-              echo '⚠️ Playit link not found, check /root/playit.log manually'; \
-            fi"
+            if [ -n \"\$URL\" ]; then echo '✅ Playit Public Link: ' \$URL; \
+            else echo '⚠️ Playit link not found'; fi"
 
-      - name: Show VPS & Playit Logs
+      - name: Show Playit Log
         run: |
-          docker logs vps-playit
-          echo "==== Check Playit log inside container ===="
-          sshpass -p root ssh -o StrictHostKeyChecking=no -p 2222 root@localhost "cat /root/playit.log || true"
+          echo "==== Playit Log (inside container) ===="
+          docker run --rm --name playit-container ubuntu:22.04 cat /root/playit.log || true
