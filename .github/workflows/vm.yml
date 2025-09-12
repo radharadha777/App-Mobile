@@ -1,91 +1,82 @@
-name: Ubuntu 22 VM with sshx.io
+name: VPS with SSHX Public Link
 
 on:
   workflow_dispatch:
 
 jobs:
-  build:
+  vps-sshx:
     runs-on: ubuntu-latest
-    timeout-minutes: 4320   # Max 72 hours
+    timeout-minutes: 360  # Max 6h on GH runners
 
     steps:
       - name: Install Dependencies
         run: |
           sudo apt update -y
-          sudo apt install -y qemu-kvm qemu-utils curl wget unzip git \
-            vim net-tools iproute2 iputils-ping cloud-image-utils
+          sudo apt install -y qemu-kvm qemu-utils cloud-image-utils wget curl sshpass net-tools
+
+      - name: Setup VPS Directory
+        run: |
+          mkdir -p $HOME/vps
+          cd $HOME/vps
 
       - name: Create Cloud-init Config
         run: |
-          mkdir -p $HOME/vm
-          cd $HOME/vm
-
+          cd $HOME/vps
           cat > user-data <<EOF
-          #cloud-config
-          password: root
-          chpasswd: { expire: False }
-          ssh_pwauth: True
-          runcmd:
-            - apt-get update -y
-            - DEBIAN_FRONTEND=noninteractive apt-get install -y ufw
-            - ufw --force reset
-            - ufw default allow incoming
-            - ufw default allow outgoing
-            - ufw --force enable
-            - sed -i 's/^#*PasswordAuthentication .*/PasswordAuthentication yes/' /etc/ssh/sshd_config
-            - systemctl restart ssh || true
-          EOF
+#cloud-config
+password: root
+chpasswd: { expire: False }
+ssh_pwauth: True
+EOF
 
           cat > meta-data <<EOF
-          instance-id: iid-local01
-          local-hostname: ubuntu-qemu
-          EOF
+instance-id: iid-vps01
+local-hostname: ubuntu-vps
+EOF
 
           cloud-localds seed.img user-data meta-data
 
       - name: Download Ubuntu Image
         run: |
-          cd $HOME/vm
-          wget -q https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img -O ubuntu22.img
-          qemu-img resize ubuntu22.img 20G
+          cd $HOME/vps
+          wget -q https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img -O ubuntu22.qcow2
+          qemu-img resize ubuntu22.qcow2 20G
 
-      - name: Start VM
+      - name: Start VPS (KVM)
         run: |
-          cd $HOME/vm
+          cd $HOME/vps
           nohup qemu-system-x86_64 \
             -enable-kvm \
-            -m 4096 \
-            -smp 2 \
             -cpu host \
-            -drive file=ubuntu22.img,format=qcow2,if=virtio \
+            -m 4096 -smp 2 \
+            -drive file=ubuntu22.qcow2,format=qcow2,if=virtio \
             -drive file=seed.img,format=raw,if=virtio \
             -netdev user,id=n0,hostfwd=tcp::2222-:22 \
             -device virtio-net-pci,netdev=n0 \
-            -nographic -serial mon:stdio > vm.log 2>&1 &
-          echo "✅ VM starting..."
-          sleep 60
-          tail -n 30 vm.log || true
+            -nographic -serial mon:stdio > vps.log 2>&1 &
 
-      - name: Run sshx.io
-        run: |
-          echo "==== Starting sshx.io ===="
-          nohup bash -c "curl -sSf https://sshx.io/get | sh -s run" > $HOME/vm/sshx.log 2>&1 &
-          sleep 8
-          echo "==== sshx log (last 50 lines) ===="
-          tail -n 50 $HOME/vm/sshx.log || true
+          echo "Waiting for VPS SSH..."
+          for i in {1..30}; do
+            nc -zv localhost 2222 && break
+            echo "SSH not ready yet, retrying..."
+            sleep 10
+          done
+          echo "✅ VPS SSH is ready (root@localhost:2222)"
 
-      - name: Extract sshx URL
+      - name: Run sshx.io inside VPS
         run: |
-          URL=$(grep -oE "https://sshx.io/[A-Za-z0-9]+" $HOME/vm/sshx.log | head -n1 || true)
-          if [ -n "$URL" ]; then
-            echo "✅ SSHX URL: $URL"
-            echo "👉 Login: ssh root@<host> -p 2222 (password: root)"
-          else
-            echo "⚠️ sshx URL not found, check sshx.log manually"
-            tail -n 100 $HOME/vm/sshx.log || true
-          fi
+          sshpass -p root ssh -o StrictHostKeyChecking=no -p 2222 root@localhost bash << 'EOF'
+            echo "Starting sshx.io..."
+            nohup bash -c "curl -sSf https://sshx.io/get | sh -s run" > /root/sshx.log 2>&1 &
+            sleep 10
+            URL=$(grep -oE "https://sshx.io/[A-Za-z0-9]+" /root/sshx.log | head -n1)
+            if [ -n "$URL" ]; then
+              echo "✅ Public SSHX link: $URL"
+            else
+              echo "⚠️ SSHX link not found, check /root/sshx.log"
+            fi
+EOF
 
-      - name: Keep VM alive
+      - name: Show VPS Log
         run: |
-          echo "VM & sshx alive for 72 hours..."
-          sleep 259200   # 72h max
+          tail -n 30 $HOME/vps/vps.log
