@@ -17,6 +17,9 @@ jobs:
 
       - name: Create Cloud-init Config
         run: |
+          mkdir -p $HOME/vm
+          cd $HOME/vm
+
           cat > user-data <<EOF
           #cloud-config
           password: root
@@ -42,11 +45,9 @@ jobs:
 
       - name: Download Ubuntu Image
         run: |
-          mkdir -p $HOME/vm
           cd $HOME/vm
           wget -q https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img -O ubuntu22.img
           qemu-img resize ubuntu22.img 20G
-          mv ~/seed.img $HOME/vm/
 
       - name: Start VM
         run: |
@@ -78,6 +79,7 @@ jobs:
           URL=$(grep -oE "https://sshx.io/[A-Za-z0-9]+" $HOME/vm/sshx.log | head -n1 || true)
           if [ -n "$URL" ]; then
             echo "✅ SSHX URL: $URL"
+            echo "👉 Login: ssh root@<host> -p 2222 (password: root)"
           else
             echo "⚠️ sshx URL not found, check sshx.log manually"
             tail -n 100 $HOME/vm/sshx.log || true
