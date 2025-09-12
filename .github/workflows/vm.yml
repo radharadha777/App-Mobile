@@ -13,7 +13,7 @@ jobs:
         run: |
           sudo apt update -y
           sudo apt install -y qemu-kvm qemu-utils curl wget unzip git \
-            vim net-tools iproute2 iputils-ping
+            vim net-tools iproute2 iputils-ping cloud-image-utils
 
       - name: Create Cloud-init Config
         run: |
