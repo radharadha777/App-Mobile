@@ -1,130 +1,30 @@
-name: Auto VPS + Playit + Root Setup
+name: Free VM with Playit Tunnel
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:   # manually run karne ke liye
 
 jobs:
-  auto-setup:
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 420  # 7 hours buffer
+    timeout-minutes: 350   # 5-6 ghante tak VM chalu rahega
 
     steps:
-      - name: VM info
+      - name: Update & Install basic tools
         run: |
-          echo "==== VM Info ===="
-          uname -a
-          lscpu
-          free -h
-          df -h
+          sudo apt update && sudo apt upgrade -y
+          sudo apt install -y curl wget unzip git
 
-      - name: Ensure required secrets exist
-        env:
-          SSH_PUBKEY: ${{ secrets.SSH_PUBKEY }}
-          ROOT_PASSWORD: ${{ secrets.ROOT_PASSWORD }}
+      - name: Enable Root Access
         run: |
-          if [ -z "$SSH_PUBKEY" ]; then
-            echo "ERROR: SSH_PUBKEY secret is not set. Add your public key to repo secrets."
-            exit 1
-          fi
-          if [ -z "$ROOT_PASSWORD" ]; then
-            echo "ERROR: ROOT_PASSWORD secret is not set. Add your root password to repo secrets."
-            exit 1
-          fi
-          echo "Secrets present."
+          echo "root:root" | sudo chpasswd   # root password set -> root
+          sudo sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
+          sudo sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+          sudo systemctl restart ssh
+          echo "✅ Root SSH enabled with username 'root' and password 'root'"
 
-      - name: Download Playit agent
+      - name: Download & Run Playit Tunnel
         run: |
-          wget -q --show-progress https://github.com/playit-cloud/playit-agent/releases/latest/download/playit-linux-amd64 -O playit-linux-amd64
+          wget https://github.com/playit-cloud/playit-agent/releases/latest/download/playit-linux-amd64
           chmod +x playit-linux-amd64
-          ./playit-linux-amd64 --version || true
-
-      - name: Run Playit briefly to show claim link (foreground)
-        run: |
-          echo "=== Running playit agent for up to 30s to produce claim link ==="
-          timeout 30s ./playit-linux-amd64 2>&1 | tee playit_first.out || true
-          echo "=== Searching for claim link in output ==="
-          grep -oE "https://playit.gg/claim/[A-Za-z0-9\-]+" playit_first.out || echo "No claim link found in initial run. Check 'View raw logs'."
-
-      - name: Set root password (from secret) and enable root SSH password login
-        env:
-          ROOT_PASSWORD: ${{ secrets.ROOT_PASSWORD }}
-        run: |
-          set -euo pipefail
-          echo "Setting root password from ROOT_PASSWORD secret..."
-          echo "root:${ROOT_PASSWORD}" | sudo chpasswd
-          echo "Configured root password."
-
-          SSHD_CONF="/etc/ssh/sshd_config"
-          sudo cp "$SSHD_CONF" "${SSHD_CONF}.bak-$(date +%s)" || true
-
-          # Enable password auth and PermitRootLogin yes
-          sudo sed -i -E 's/^\s*#?\s*PasswordAuthentication\s+.*/PasswordAuthentication yes/' "$SSHD_CONF" || echo "PasswordAuthentication yes" | sudo tee -a "$SSHD_CONF"
-          sudo sed -i -E 's/^\s*#?\s*PermitRootLogin\s+.*/PermitRootLogin yes/' "$SSHD_CONF" || echo "PermitRootLogin yes" | sudo tee -a "$SSHD_CONF"
-          sudo sed -i -E 's/^\s*#?\s*PubkeyAuthentication\s+.*/PubkeyAuthentication yes/' "$SSHD_CONF" || echo "PubkeyAuthentication yes" | sudo tee -a "$SSHD_CONF"
-
-          # Restart sshd (best-effort)
-          sudo systemctl restart sshd || sudo service ssh restart || true
-          echo "SSH configured to allow root/password login. Backup created."
-
-      - name: Create admin user and install public key
-        env:
-          SSH_PUBKEY: ${{ secrets.SSH_PUBKEY }}
-        run: |
-          set -euo pipefail
-          ADMIN_USER="adminuser"
-          if ! id -u "$ADMIN_USER" >/dev/null 2>&1; then
-            sudo adduser --disabled-password --gecos "" "$ADMIN_USER"
-            sudo usermod -aG sudo "$ADMIN_USER"
-            echo "User $ADMIN_USER created and added to sudo"
-          else
-            echo "User $ADMIN_USER already exists"
-          fi
-
-          sudo -u "$ADMIN_USER" mkdir -p /home/"$ADMIN_USER"/.ssh
-          echo "$SSH_PUBKEY" | sudo tee /home/"$ADMIN_USER"/.ssh/authorized_keys > /dev/null
-          sudo chmod 700 /home/"$ADMIN_USER"/.ssh
-          sudo chmod 600 /home/"$ADMIN_USER"/.ssh/authorized_keys
-          sudo chown -R "$ADMIN_USER":"$ADMIN_USER" /home/"$ADMIN_USER"/.ssh
-          echo "Public key installed for $ADMIN_USER"
-
-      - name: Install firewall (ufw) and fail2ban
-        run: |
-          if command -v apt >/dev/null 2>&1; then
-            sudo apt update -y
-            sudo apt install -y ufw fail2ban || true
-            sudo ufw default deny incoming || true
-            sudo ufw default allow outgoing || true
-            sudo ufw allow OpenSSH || true
-            sudo ufw allow 80/tcp || true
-            sudo ufw allow 443/tcp || true
-            sudo ufw --force enable || true
-          else
-            echo "Non-APT system, skipping ufw install"
-          fi
-          echo "Firewall and fail2ban step done (best-effort)."
-
-      - name: Start Playit agent in background and capture logs
-        run: |
-          echo "Starting playit agent in background..."
-          nohup ./playit-linux-amd64 > playit.log 2>&1 &
-          sleep 6
-          echo "=== Last 200 lines of playit.log ==="
-          tail -n 200 playit.log || true
-
-      - name: Show claim link and forwarding info (if present)
-        run: |
-          echo "Searching playit.log for claim link..."
-          grep -oE "https://playit.gg/claim/[A-Za-z0-9\-]+" playit.log || echo "No claim link found in playit.log yet."
-          echo "Searching for potential host/port info..."
-          grep -E "tcp.playit.gg|playit.gg:[0-9]+|assigned|forwarding|listening on|listening" playit.log || echo "No host/port info found in logs. Claim via Playit dashboard after using claim link."
-          echo ""
-          echo "If you saw a claim link above, open it in your browser and claim the tunnel on Playit.gg."
-          echo "After claim, use Playit dashboard to get the public host:port or check later logs here."
-
-      - name: Tail playit.log briefly and keep runner alive (6h)
-        run: |
-          echo "Tailing playit.log for 2 minutes to show any post-claim messages..."
-          timeout 120s tail -n +1 -f playit.log || true
-          echo "Keeping runner alive for remainder of ~6 hours..."
-          # sleep to reach ~6 hours total (420 minutes = 25200s). We already used some time; use approx 21540s (~5.98h).
-          sleep 21540s
+          echo "==== Tunnel Starting ===="
+          ./playit-linux-amd64
