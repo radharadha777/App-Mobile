@@ -1,32 +1,20 @@
-name: Free VM with Playit Tunnel
+name: Free VM with Playit
 
 on:
-  workflow_dispatch: # Run manually from GitHub Actions tab
+  workflow_dispatch:
 
 jobs:
   run-vm:
     runs-on: ubuntu-latest
     steps:
-      - name: Update Packages
+      - name: Setup VM
         run: sudo apt update -y
 
-      - name: Download Playit Client
+      - name: Install & Run Playit
         run: |
-          wget https://github.com/playit-cloud/playit-agent/releases/latest/download/playit-linux-amd64
-          chmod +x playit-linux-amd64
-          nohup ./playit-linux-amd64 &
+          bash <(curl -fsSL https://raw.githubusercontent.com/hopingboyz/playit/main/playit.sh)
 
-      - name: Show VM Info
+      - name: Keep Alive
         run: |
-          echo "==== VM Info ===="
-          uname -a
-          lscpu
-          free -h
-          df -h
-          echo "==== Tunnel Started ===="
-          echo "Login to https://playit.gg/ and check your tunnel."
-
-      - name: Keep VM Alive
-        run: |
-          echo "Keeping VM alive for 6h"
+          echo "VM started with Playit Tunnel"
           sleep 6h
