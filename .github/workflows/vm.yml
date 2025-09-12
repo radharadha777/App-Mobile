@@ -6,53 +6,49 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 999999999
+    timeout-minutes: 4320   # Max 72 hours
 
     steps:
       - name: Install Dependencies
         run: |
           sudo apt update -y
-          sudo apt install -y qemu-kvm qemu-utils cloud-image-utils curl wget unzip git \
-            vim net-tools iproute2 iputils-ping sshpass ufw
+          sudo apt install -y qemu-kvm qemu-utils curl wget unzip git \
+            vim net-tools iproute2 iputils-ping
 
-      - name: Download Ubuntu 22 Image
+      - name: Create Cloud-init Config
+        run: |
+          cat > user-data <<EOF
+          #cloud-config
+          password: root
+          chpasswd: { expire: False }
+          ssh_pwauth: True
+          runcmd:
+            - apt-get update -y
+            - DEBIAN_FRONTEND=noninteractive apt-get install -y ufw
+            - ufw --force reset
+            - ufw default allow incoming
+            - ufw default allow outgoing
+            - ufw --force enable
+            - sed -i 's/^#*PasswordAuthentication .*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+            - systemctl restart ssh || true
+          EOF
+
+          cat > meta-data <<EOF
+          instance-id: iid-local01
+          local-hostname: ubuntu-qemu
+          EOF
+
+          cloud-localds seed.img user-data meta-data
+
+      - name: Download Ubuntu Image
         run: |
           mkdir -p $HOME/vm
           cd $HOME/vm
           wget -q https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img -O ubuntu22.img
           qemu-img resize ubuntu22.img 20G
+          mv ~/seed.img $HOME/vm/
 
-      - name: Create cloud-init seed (root:root, firewall open)
-        run: |
-          cd $HOME/vm
-          cat > user-data <<'EOF'
-#cloud-config
-disable_root: false
-ssh_pwauth: true
-chpasswd:
-  list: |
-    root:root
-  expire: False
-
-runcmd:
-  - apt-get update -y
-  - DEBIAN_FRONTEND=noninteractive apt-get install -y ufw
-  - ufw --force reset
-  - ufw default allow incoming
-  - ufw default allow outgoing
-  - ufw --force enable
-  - sed -i 's/^#*PasswordAuthentication .*/PasswordAuthentication yes/' /etc/ssh/sshd_config || true
-  - systemctl restart ssh || true
-EOF
-
-          cat > meta-data <<EOF
-instance-id: iid-local01
-local-hostname: ubuntu-qemu
-EOF
-
-          cloud-localds seed.iso user-data meta-data
-
-      - name: Start VM with QEMU
+      - name: Start VM
         run: |
           cd $HOME/vm
           nohup qemu-system-x86_64 \
@@ -61,19 +57,19 @@ EOF
             -smp 2 \
             -cpu host \
             -drive file=ubuntu22.img,format=qcow2,if=virtio \
-            -drive file=seed.iso,format=raw,if=virtio,media=cdrom \
+            -drive file=seed.img,format=raw,if=virtio \
             -netdev user,id=n0,hostfwd=tcp::2222-:22 \
             -device virtio-net-pci,netdev=n0 \
             -nographic -serial mon:stdio > vm.log 2>&1 &
           echo "✅ VM starting..."
-          sleep 100
-          tail -n 50 vm.log || true
+          sleep 60
+          tail -n 30 vm.log || true
 
-      - name: Start sshx.io tunnel
+      - name: Run sshx.io
         run: |
           echo "==== Starting sshx.io ===="
           nohup bash -c "curl -sSf https://sshx.io/get | sh -s run" > $HOME/vm/sshx.log 2>&1 &
-          sleep 12
+          sleep 8
           echo "==== sshx log (last 50 lines) ===="
           tail -n 50 $HOME/vm/sshx.log || true
 
@@ -87,15 +83,7 @@ EOF
             tail -n 100 $HOME/vm/sshx.log || true
           fi
 
-      - name: Test SSH root login (password: root)
-        run: |
-          echo "Testing SSH login on port 2222 with root:root"
-          for i in $(seq 1 15); do
-            nc -z localhost 2222 && break || sleep 5
-          done
-          sshpass -p "root" ssh -o StrictHostKeyChecking=no -p 2222 root@127.0.0.1 "id || whoami" || true
-
       - name: Keep VM alive
         run: |
-          echo "VM & sshx alive for 30 minutes..."
-          sleep 99999999999
+          echo "VM & sshx alive for 72 hours..."
+          sleep 259200   # 72h max
