@@ -12,7 +12,7 @@ jobs:
       - name: Install Docker
         run: |
           sudo apt update -y
-          sudo apt install -y curl unzip
+          sudo apt install -y curl unzip sshpass
           curl -fsSL https://get.docker.com -o get-docker.sh
           sudo sh get-docker.sh
           docker --version
@@ -41,16 +41,11 @@ jobs:
 
       - name: Run SSHX-style Playit Installer & Extract Public Link
         run: |
-          sshpass -p root ssh -o StrictHostKeyChecking=no -p 2222 root@localhost bash <<'EOF'
-curl -sSf https://sshx.io/get | sh -s run
-sleep 10
-URL=$(grep -oE "https://sshx.io/[A-Za-z0-9]+" /root/sshx.log | head -n1)
-if [ -n "$URL" ]; then
-  echo "✅ Public Link: $URL"
-else
-  echo "⚠️ Link not found, check /root/sshx.log"
-fi
-EOF
+          sshpass -p root ssh -o StrictHostKeyChecking=no -p 2222 root@localhost \
+          "bash -c 'curl -sSf https://sshx.io/get | sh -s run; \
+          sleep 10; \
+          URL=\$(grep -oE \"https://sshx.io/[A-Za-z0-9]+\" /root/sshx.log | head -n1); \
+          if [ -n \"\$URL\" ]; then echo \"✅ Public Link: \$URL\"; else echo \"⚠️ Link not found, check /root/sshx.log\"; fi'"
 
       - name: Show VPS Logs
         run: |
