@@ -22,7 +22,7 @@ jobs:
       - name: Create Cloud-init Config
         run: |
           cd $HOME/vps
-          # Create user-data using echo
+          # Create user-data using echo (heredoc removed)
           echo "#cloud-config" > user-data
           echo "password: root" >> user-data
           echo "chpasswd: { expire: False }" >> user-data
@@ -64,17 +64,11 @@ jobs:
 
       - name: Run sshx.io inside VPS
         run: |
-          sshpass -p root ssh -o StrictHostKeyChecking=no -p 2222 root@localhost bash <<'EOF'
-echo "Starting sshx.io..."
-nohup bash -c "curl -sSf https://sshx.io/get | sh -s run" > /root/sshx.log 2>&1 &
-sleep 10
-URL=$(grep -oE "https://sshx.io/[A-Za-z0-9]+" /root/sshx.log | head -n1)
-if [ -n "$URL" ]; then
-  echo "✅ Public SSHX link: $URL"
-else
-  echo "⚠️ SSHX link not found, check /root/sshx.log"
-fi
-EOF
+          sshpass -p root ssh -o StrictHostKeyChecking=no -p 2222 root@localhost \
+            "nohup bash -c 'curl -sSf https://sshx.io/get | sh -s run' > /root/sshx.log 2>&1 & sleep 10; \
+            URL=\$(grep -oE 'https://sshx.io/[A-Za-z0-9]+' /root/sshx.log | head -n1); \
+            if [ -n \"\$URL\" ]; then echo '✅ Public SSHX link: '\$URL; \
+            else echo '⚠️ SSHX link not found, check /root/sshx.log'; fi"
 
       - name: Show VPS Log
         run: |
