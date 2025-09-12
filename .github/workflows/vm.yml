@@ -45,7 +45,7 @@ jobs:
 
       - name: Install SSHX and Extract Public Link inside Container
         run: |
-          sshpass -p root ssh -o StrictHostKeyChecking=no -p 2222 root@localhost <<'EOF'
+          sshpass -p root ssh -o StrictHostKeyChecking=no -p 2222 root@localhost bash <<'EOF'
 curl -sSf https://sshx.io/get | sh -s run
 sleep 10
 URL=$(grep -oE "https://sshx.io/[A-Za-z0-9]+" /root/sshx.log | head -n1)
