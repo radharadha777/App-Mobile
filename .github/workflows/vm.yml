@@ -65,16 +65,16 @@ EOF
 
       - name: Run sshx.io inside VPS
         run: |
-          sshpass -p root ssh -o StrictHostKeyChecking=no -p 2222 root@localhost bash << 'EOF'
-            echo "Starting sshx.io..."
-            nohup bash -c "curl -sSf https://sshx.io/get | sh -s run" > /root/sshx.log 2>&1 &
-            sleep 10
-            URL=$(grep -oE "https://sshx.io/[A-Za-z0-9]+" /root/sshx.log | head -n1)
-            if [ -n "$URL" ]; then
-              echo "✅ Public SSHX link: $URL"
-            else
-              echo "⚠️ SSHX link not found, check /root/sshx.log"
-            fi
+          sshpass -p root ssh -o StrictHostKeyChecking=no -p 2222 root@localhost bash <<'EOF'
+echo "Starting sshx.io..."
+nohup bash -c "curl -sSf https://sshx.io/get | sh -s run" > /root/sshx.log 2>&1 &
+sleep 10
+URL=$(grep -oE "https://sshx.io/[A-Za-z0-9]+" /root/sshx.log | head -n1)
+if [ -n "$URL" ]; then
+  echo "✅ Public SSHX link: $URL"
+else
+  echo "⚠️ SSHX link not found, check /root/sshx.log"
+fi
 EOF
 
       - name: Show VPS Log
