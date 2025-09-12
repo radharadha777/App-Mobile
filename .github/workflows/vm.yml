@@ -1,30 +1,33 @@
 name: Free VM with Playit Tunnel
 
 on:
-  workflow_dispatch:   # manually run karne ke liye
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 350   # 5-6 ghante tak VM chalu rahega
+    timeout-minutes: 350
 
     steps:
-      - name: Update & Install basic tools
+      - name: Update & Install tools
         run: |
-          sudo apt update && sudo apt upgrade -y
+          sudo apt update -y
           sudo apt install -y curl wget unzip git
 
       - name: Enable Root Access
         run: |
-          echo "root:root" | sudo chpasswd   # root password set -> root
+          echo "root:root" | sudo chpasswd
           sudo sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
           sudo sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
           sudo systemctl restart ssh
-          echo "✅ Root SSH enabled with username 'root' and password 'root'"
+          echo "✅ Root user enabled with password 'root'"
 
-      - name: Download & Run Playit Tunnel
+      - name: Download Playit
         run: |
           wget https://github.com/playit-cloud/playit-agent/releases/latest/download/playit-linux-amd64
           chmod +x playit-linux-amd64
+
+      - name: Start Playit in Claim Mode
+        run: |
           echo "==== Tunnel Starting ===="
-          ./playit-linux-amd64
+          ./playit-linux-amd64 claim
