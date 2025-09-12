@@ -22,18 +22,17 @@ jobs:
       - name: Create Cloud-init Config
         run: |
           cd $HOME/vps
-          cat > user-data <<EOF
-#cloud-config
-password: root
-chpasswd: { expire: False }
-ssh_pwauth: True
-EOF
+          # Create user-data using echo
+          echo "#cloud-config" > user-data
+          echo "password: root" >> user-data
+          echo "chpasswd: { expire: False }" >> user-data
+          echo "ssh_pwauth: True" >> user-data
 
-          cat > meta-data <<EOF
-instance-id: iid-vps01
-local-hostname: ubuntu-vps
-EOF
+          # Create meta-data using echo
+          echo "instance-id: iid-vps01" > meta-data
+          echo "local-hostname: ubuntu-vps" >> meta-data
 
+          # Generate seed.img
           cloud-localds seed.img user-data meta-data
 
       - name: Download Ubuntu Image
