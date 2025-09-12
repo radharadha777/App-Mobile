@@ -79,5 +79,4 @@ EOF
             -nographic -serial mon:stdio > vm.log 2>&1 &
           sleep 60
           echo "✅ VM started (sshx.io running inside)."
-          echo "👉 Run this to see sshx URL:"
-          echo "tail -f $HOME/vm/vm.log"
+          tail -n 20 vm.log
