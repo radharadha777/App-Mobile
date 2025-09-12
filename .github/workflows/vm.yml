@@ -1,4 +1,4 @@
-name: Free VM with Playit
+name: Free VM with Playit Tunnel
 
 on:
   workflow_dispatch:
@@ -7,14 +7,35 @@ jobs:
   run-vm:
     runs-on: ubuntu-latest
     steps:
-      - name: Setup VM
-        run: sudo apt update -y
-
-      - name: Install & Run Playit
+      - name: Show VM Info
         run: |
-          bash <(curl -fsSL https://raw.githubusercontent.com/hopingboyz/playit/main/playit.sh)
+          echo "==== VM Info ===="
+          uname -a
+          lscpu
+          free -h
+          df -h
 
-      - name: Keep Alive
+      - name: Download Playit Agent
         run: |
-          echo "VM started with Playit Tunnel"
+          wget https://github.com/playit-cloud/playit-agent/releases/latest/download/playit-linux-amd64
+          chmod +x playit-linux-amd64
+
+      - name: Get Claim Link (Foreground Mode)
+        run: |
+          echo "==== Claim Link ===="
+          echo "Copy the claim link below and open in your Playit.gg account"
+          timeout 30s ./playit-linux-amd64 || true
+          echo "===================="
+          echo "⚠️ Agar claim link miss ho gaya to 'View raw logs' me check karo"
+
+      - name: Run Playit Agent in Background
+        run: |
+          nohup ./playit-linux-amd64 > playit.log 2>&1 &
+          echo "Playit agent is now running in background"
+          sleep 5
+          tail -n 20 playit.log || true
+
+      - name: Keep VM Alive
+        run: |
+          echo "==== VM Running for 6h ===="
           sleep 6h
