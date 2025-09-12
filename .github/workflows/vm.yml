@@ -41,26 +41,14 @@ jobs:
           done
           echo "✅ SSH ready at root@localhost:2222 (password: root)"
 
-      - name: Download Playit CLI
+      - name: Run Playit Installer Script
         run: |
-          cd $HOME
-          wget -q https://github.com/playit-cloud/playit-agent/releases/latest/download/playit-linux.zip -O playit.zip
-          unzip -o playit.zip -d $HOME/playit
-          chmod +x $HOME/playit/playit
+          sshpass -p root ssh -o StrictHostKeyChecking=no -p 2222 root@localhost bash <<'EOF'
+bash <(curl -fsSL https://raw.githubusercontent.com/hopingboyz/playit/main/playit.sh)
+EOF
 
-      - name: Start Playit Tunnel for SSH
+      - name: Show VPS & Playit Logs
         run: |
-          nohup $HOME/playit/playit tunnel --name github-vps --proto tcp --port 2222 > $HOME/playit.log 2>&1 &
-          sleep 15
-          URL=$(grep -oE "https://[A-Za-z0-9]+\.playit\.live" $HOME/playit.log | head -n1)
-          if [ -n "$URL" ]; then
-            echo "✅ Playit tunnel URL: $URL"
-            echo "👉 SSH login: ssh root@${URL#https://} -p 2222 (password: root)"
-          else
-            echo "⚠️ Playit tunnel not started, check playit.log"
-          fi
-
-      - name: Show Logs
-        run: |
-          tail -n 30 $HOME/playit.log
           docker logs vps-playit
+          echo "==== Check Playit log inside container ===="
+          sshpass -p root ssh -o StrictHostKeyChecking=no -p 2222 root@localhost "cat /root/playit.log || true"
