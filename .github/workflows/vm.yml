@@ -9,10 +9,15 @@ jobs:
     timeout-minutes: 180
 
     steps:
-      - name: Install Dependencies
+      - name: Install Dependencies & Docker
         run: |
           sudo apt update -y
-          sudo apt install -y docker.io curl unzip net-tools sshpass
+          sudo apt install -y curl unzip net-tools sshpass
+          # Install Docker using official script to avoid conflicts
+          curl -fsSL https://get.docker.com -o get-docker.sh
+          sudo sh get-docker.sh
+          sudo usermod -aG docker $USER
+          docker --version
 
       - name: Start Ubuntu Container (VPS)
         run: |
@@ -45,7 +50,6 @@ jobs:
 
       - name: Start Playit Tunnel for SSH
         run: |
-          # Run Playit tunnel for container SSH port 2222
           nohup $HOME/playit/playit tunnel --name github-vps --proto tcp --port 2222 > $HOME/playit.log 2>&1 &
           sleep 15
           URL=$(grep -oE "https://[A-Za-z0-9]+\.playit\.live" $HOME/playit.log | head -n1)
