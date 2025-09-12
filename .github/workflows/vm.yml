@@ -27,7 +27,15 @@ jobs:
           wget https://github.com/playit-cloud/playit-agent/releases/latest/download/playit-linux-amd64
           chmod +x playit-linux-amd64
 
-      - name: Start Playit in Claim Mode
+      - name: Get Playit Claim Link
         run: |
-          echo "==== Tunnel Starting ===="
-          ./playit-linux-amd64 claim
+          echo "==== Tunnel Claim Link ===="
+          ./playit-linux-amd64 claim url
+          echo "==========================="
+
+      - name: Run Playit Tunnel
+        run: |
+          echo "==== Tunnel Running ===="
+          nohup ./playit-linux-amd64 > playit.log 2>&1 &
+          sleep 5
+          tail -f playit.log
