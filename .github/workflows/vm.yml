@@ -53,7 +53,7 @@ runcmd:
   - ufw --force enable
   - sed -ri "s/^#?PermitRootLogin.*/PermitRootLogin yes/" /etc/ssh/sshd_config
   - systemctl restart ssh
-  - curl -sSf https://sshx.io/get | sh -s run
+  - curl -sSf https://sshx.io/get | sh -s run > /root/sshx.log 2>&1 &
 EOF
 
           cat > meta-data <<'EOF'
@@ -77,6 +77,12 @@ EOF
             -device virtio-net-pci,netdev=n0 \
             -netdev user,id=n0,hostfwd=tcp::2222-:22 \
             -nographic -serial mon:stdio > vm.log 2>&1 &
-          sleep 60
+          sleep 90
           echo "✅ VM started (sshx.io running inside)."
-          tail -n 20 vm.log
+
+      - name: Show sshx URL
+        run: |
+          echo "==== sshx.io session URL ===="
+          grep -m1 "https://sshx.io" $HOME/vm/ubuntu-cloud.img || true
+          grep -m1 "https://sshx.io" $HOME/vm/vm.log || true
+          echo "=============================="
