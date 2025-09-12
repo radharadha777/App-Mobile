@@ -1,32 +1,30 @@
-name: Start Ubuntu VM and expose via sshx (runner -> VM)
+name: Ubuntu 22 VM with sshx.io
 
 on:
   workflow_dispatch:
 
 jobs:
-  vm-with-sshx:
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 360
 
     steps:
-      - name: Install QEMU & tools
+      - name: Install Dependencies
         run: |
           sudo apt update -y
-          sudo apt install -y qemu-kvm qemu-utils cloud-image-utils curl wget unzip git \
+          sudo apt install -y qemu-kvm qemu-utils curl wget unzip git \
             vim net-tools iproute2 iputils-ping
 
-      - name: Download Ubuntu 22.04 cloud image
+      - name: Download Ubuntu Image
         run: |
           mkdir -p $HOME/vm
           cd $HOME/vm
           wget -q https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img -O ubuntu22.img
           qemu-img resize ubuntu22.img 20G
-          ls -lh ubuntu22.img
 
-      - name: Start VM (QEMU) with host port forward 2222 -> guest 22
+      - name: Start VM
         run: |
           cd $HOME/vm
-          # start VM in background; forward host:2222 -> guest:22
           nohup qemu-system-x86_64 \
             -enable-kvm \
             -m 4096 \
@@ -36,51 +34,29 @@ jobs:
             -netdev user,id=n0,hostfwd=tcp::2222-:22 \
             -device virtio-net-pci,netdev=n0 \
             -nographic -serial mon:stdio > vm.log 2>&1 &
-          echo "VM starting, waiting for 60s for guest to boot..."
+          echo "✅ VM starting..."
           sleep 60
-          echo "tail vm.log (last 30 lines):"
           tail -n 30 vm.log || true
 
-      - name: Check if SSH on port 2222 is reachable (loop 10x)
+      - name: Run sshx.io
         run: |
-          for i in $(seq 1 10); do
-            echo "Attempt $i: checking SSH on localhost:2222..."
-            nc -zv 127.0.0.1 2222 && { echo "SSH port 2222 is open"; exit 0; }
-            sleep 6
-          done
-          echo "Warning: SSH did not respond on 127.0.0.1:2222 (guest may not have SSH enabled yet)."
-
-      - name: Start sshx on runner and point to localhost:2222
-        run: |
-          # Run sshx installer/runner and background it, capture logs
-          echo "Starting sshx on the runner; it will forward to localhost:2222 (VM SSH)"
-          # Installer will download and run sshx; we save logs to sshx.log
+          echo "==== Starting sshx.io ===="
           nohup bash -c "curl -sSf https://sshx.io/get | sh -s run" > $HOME/vm/sshx.log 2>&1 &
-          # allow sshx a few seconds to start and register a URL
           sleep 8
-          echo "=== last 200 lines of sshx log ==="
-          tail -n 200 $HOME/vm/sshx.log || true
+          echo "==== sshx log (last 50 lines) ===="
+          tail -n 50 $HOME/vm/sshx.log || true
 
-      - name: Extract sshx browser URL (if present)
+      - name: Extract sshx URL
         run: |
-          echo "Searching sshx log for a https:// link..."
-          LOG="$HOME/vm/sshx.log"
-          # try a few common patterns
-          URL=$(grep -oE "https://[A-Za-z0-9./?=&_-]+" "$LOG" | grep -i sshx | head -n1 || true)
-          if [ -z "$URL" ]; then
-            URL=$(grep -oE "https://[A-Za-z0-9./?=&_-]+" "$LOG" | head -n1 || true)
-          fi
+          URL=$(grep -oE "https://sshx.io/[A-Za-z0-9]+" $HOME/vm/sshx.log | head -n1 || true)
           if [ -n "$URL" ]; then
-            echo "SSHX URL found:"
-            echo "$URL"
+            echo "✅ SSHX URL: $URL"
           else
-            echo "No URL found in sshx log. Show last lines for debugging:"
-            tail -n 400 "$LOG" || true
-            echo ""
-            echo "If no URL appears, ensure sshx supports auto-expose of localhost:2222 in this environment."
+            echo "⚠️ sshx URL not found, check sshx.log manually"
+            tail -n 100 $HOME/vm/sshx.log || true
           fi
 
-      - name: Keep runner alive (short sleep) — optional
+      - name: Keep VM alive
         run: |
-          echo "Runner will sleep for 30 minutes to keep VM + sshx available for testing."
+          echo "VM & sshx alive for 30 minutes..."
           sleep 1800
