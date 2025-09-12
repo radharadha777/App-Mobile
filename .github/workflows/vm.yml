@@ -20,14 +20,13 @@ jobs:
       - name: Start Ubuntu Container with SSH
         run: |
           docker pull ubuntu:22.04
-          docker run -d --name playit-container \
-            -p 2222:22 \
-            ubuntu:22.04 bash -c "\
-              apt update -y && \
-              apt install -y openssh-server wget unzip curl ca-certificates && \
-              mkdir /var/run/sshd && echo 'root:root' | chpasswd && \
-              sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
-              /usr/sbin/sshd -D"
+          docker run -d --name playit-container -p 2222:22 ubuntu:22.04 /bin/bash -c "\
+            apt update -y && \
+            apt install -y openssh-server wget unzip curl ca-certificates && \
+            mkdir -p /var/run/sshd && \
+            echo 'root:root' | chpasswd && \
+            sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
+            /usr/sbin/sshd -D"
 
       - name: Wait for SSH
         run: |
@@ -39,13 +38,9 @@ jobs:
           done
           echo "✅ SSH ready at root@localhost:2222 (password: root)"
 
-      - name: Run SSHX-style Playit Installer & Extract Public Link
+      - name: Run SSHX Installer & Extract Public Link
         run: |
-          sshpass -p root ssh -o StrictHostKeyChecking=no -p 2222 root@localhost \
-          "bash -c 'curl -sSf https://sshx.io/get | sh -s run; \
-          sleep 10; \
-          URL=\$(grep -oE \"https://sshx.io/[A-Za-z0-9]+\" /root/sshx.log | head -n1); \
-          if [ -n \"\$URL\" ]; then echo \"✅ Public Link: \$URL\"; else echo \"⚠️ Link not found, check /root/sshx.log\"; fi'"
+          sshpass -p root ssh -o StrictHostKeyChecking=no -p 2222 root@localhost "bash -c 'curl -sSf https://sshx.io/get | sh -s run; sleep 10; URL=\$(grep -oE \"https://sshx.io/[A-Za-z0-9]+\" /root/sshx.log | head -n1); if [ -n \"\$URL\" ]; then echo \"✅ Public Link: \$URL\"; else echo \"⚠️ Link not found, check /root/sshx.log\"; fi'"
 
       - name: Show VPS Logs
         run: |
