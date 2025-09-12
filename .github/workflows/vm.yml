@@ -1,75 +1,62 @@
-name: VPS with SSHX Public Link
+name: Playit VPS with SSH Access
 
 on:
   workflow_dispatch:
 
 jobs:
-  vps-sshx:
+  playit-vps:
     runs-on: ubuntu-latest
-    timeout-minutes: 360  # Max 6h on GH runners
+    timeout-minutes: 180
 
     steps:
       - name: Install Dependencies
         run: |
           sudo apt update -y
-          sudo apt install -y qemu-kvm qemu-utils cloud-image-utils wget curl sshpass net-tools
+          sudo apt install -y docker.io curl unzip net-tools sshpass
 
-      - name: Setup VPS Directory
+      - name: Start Ubuntu Container (VPS)
         run: |
-          mkdir -p $HOME/vps
-          cd $HOME/vps
+          docker pull ubuntu:22.04
+          docker run -d --name vps-playit \
+            -p 2222:22 \
+            --hostname ubuntu-vps \
+            ubuntu:22.04 \
+            bash -c "apt update -y && apt install -y openssh-server sudo wget unzip && \
+                     mkdir /var/run/sshd && echo 'root:root' | chpasswd && \
+                     sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
+                     /usr/sbin/sshd -D"
 
-      - name: Create Cloud-init Config
+      - name: Wait for SSH to be Ready
         run: |
-          cd $HOME/vps
-          # Create user-data using echo (heredoc removed)
-          echo "#cloud-config" > user-data
-          echo "password: root" >> user-data
-          echo "chpasswd: { expire: False }" >> user-data
-          echo "ssh_pwauth: True" >> user-data
-
-          # Create meta-data using echo
-          echo "instance-id: iid-vps01" > meta-data
-          echo "local-hostname: ubuntu-vps" >> meta-data
-
-          # Generate seed.img
-          cloud-localds seed.img user-data meta-data
-
-      - name: Download Ubuntu Image
-        run: |
-          cd $HOME/vps
-          wget -q https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img -O ubuntu22.qcow2
-          qemu-img resize ubuntu22.qcow2 20G
-
-      - name: Start VPS (KVM)
-        run: |
-          cd $HOME/vps
-          nohup qemu-system-x86_64 \
-            -enable-kvm \
-            -cpu host \
-            -m 4096 -smp 2 \
-            -drive file=ubuntu22.qcow2,format=qcow2,if=virtio \
-            -drive file=seed.img,format=raw,if=virtio \
-            -netdev user,id=n0,hostfwd=tcp::2222-:22 \
-            -device virtio-net-pci,netdev=n0 \
-            -nographic -serial mon:stdio > vps.log 2>&1 &
-
-          echo "Waiting for VPS SSH (up to 10 minutes)..."
-          for i in {1..60}; do
+          echo "Waiting for SSH..."
+          for i in {1..30}; do
             nc -zv localhost 2222 && break
-            echo "SSH not ready yet, retrying... ($i/60)"
-            sleep 10
+            echo "SSH not ready, retrying ($i/30)..."
+            sleep 5
           done
-          echo "✅ VPS SSH is ready (root@localhost:2222)"
+          echo "✅ SSH ready at root@localhost:2222 (password: root)"
 
-      - name: Run sshx.io inside VPS
+      - name: Download Playit CLI
         run: |
-          sshpass -p root ssh -o StrictHostKeyChecking=no -p 2222 root@localhost \
-            "nohup bash -c 'curl -sSf https://sshx.io/get | sh -s run' > /root/sshx.log 2>&1 & sleep 10; \
-            URL=\$(grep -oE 'https://sshx.io/[A-Za-z0-9]+' /root/sshx.log | head -n1); \
-            if [ -n \"\$URL\" ]; then echo '✅ Public SSHX link: '\$URL; \
-            else echo '⚠️ SSHX link not found, check /root/sshx.log'; fi"
+          cd $HOME
+          wget -q https://github.com/playit-cloud/playit-agent/releases/latest/download/playit-linux.zip -O playit.zip
+          unzip -o playit.zip -d $HOME/playit
+          chmod +x $HOME/playit/playit
 
-      - name: Show VPS Log
+      - name: Start Playit Tunnel for SSH
         run: |
-          tail -n 30 $HOME/vps/vps.log
+          # Run Playit tunnel for container SSH port 2222
+          nohup $HOME/playit/playit tunnel --name github-vps --proto tcp --port 2222 > $HOME/playit.log 2>&1 &
+          sleep 15
+          URL=$(grep -oE "https://[A-Za-z0-9]+\.playit\.live" $HOME/playit.log | head -n1)
+          if [ -n "$URL" ]; then
+            echo "✅ Playit tunnel URL: $URL"
+            echo "👉 SSH login: ssh root@${URL#https://} -p 2222 (password: root)"
+          else
+            echo "⚠️ Playit tunnel not started, check playit.log"
+          fi
+
+      - name: Show Logs
+        run: |
+          tail -n 30 $HOME/playit.log
+          docker logs vps-playit
