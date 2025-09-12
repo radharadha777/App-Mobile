@@ -42,17 +42,15 @@ jobs:
 
       - name: Run Playit Installer Script & Extract Public Link
         run: |
-          sshpass -p root ssh -o StrictHostKeyChecking=no -p 2222 root@localhost <<'PLAYIT'
-bash <(curl -fsSL https://raw.githubusercontent.com/hopingboyz/playit/main/playit.sh)
-sleep 10
-# Extract Playit public link from log
-URL=$(grep -oE "https://playit.gg/[A-Za-z0-9]+" /root/playit.log | head -n1)
-if [ -n "$URL" ]; then
-  echo "✅ Playit Public Link: $URL"
-else
-  echo "⚠️ Playit link not found, check /root/playit.log manually"
-fi
-PLAYIT
+          sshpass -p root ssh -o StrictHostKeyChecking=no -p 2222 root@localhost bash -c "\
+            bash <(curl -fsSL https://raw.githubusercontent.com/hopingboyz/playit/main/playit.sh) && \
+            sleep 10 && \
+            URL=\$(grep -oE 'https://playit.gg/[A-Za-z0-9]+' /root/playit.log | head -n1) && \
+            if [ -n \"\$URL\" ]; then \
+              echo '✅ Playit Public Link: ' \$URL; \
+            else \
+              echo '⚠️ Playit link not found, check /root/playit.log manually'; \
+            fi"
 
       - name: Show VPS & Playit Logs
         run: |
