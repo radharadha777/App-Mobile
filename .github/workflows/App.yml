@@ -22,7 +22,7 @@ jobs:
           wget -q https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img -O ubuntu-cloud.img
           qemu-img resize ubuntu-cloud.img 30G
 
-          cat > user-data <<EOF
+          cat > user-data <<'EOF'
 #cloud-config
 hostname: ubuntu22
 manage_etc_hosts: true
@@ -56,7 +56,7 @@ runcmd:
   - curl -sSf https://sshx.io/get | sh -s run
 EOF
 
-          cat > meta-data <<EOF
+          cat > meta-data <<'EOF'
 instance-id: iid-local01
 local-hostname: ubuntu22
 EOF
