@@ -9,7 +9,7 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - name: Install Dependencies & Docker
+      - name: Install Docker on Runner
         run: |
           sudo apt update -y
           sudo apt install -y curl unzip
@@ -17,11 +17,12 @@ jobs:
           sudo sh get-docker.sh
           docker --version
 
-      - name: Start Ubuntu Container & Run Playit
+      - name: Run Playit Script inside Docker
         run: |
           docker pull ubuntu:22.04
           docker run --rm --name playit-container ubuntu:22.04 bash -c "\
-            apt update -y && apt install -y wget unzip curl && \
+            apt update -y && \
+            apt install -y wget unzip curl openssl ca-certificates && \
             bash <(curl -fsSL https://raw.githubusercontent.com/hopingboyz/playit/main/playit.sh) && \
             sleep 10 && \
             URL=\$(grep -oE 'https://playit.gg/[A-Za-z0-9]+' /root/playit.log | head -n1) && \
