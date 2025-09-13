@@ -8,7 +8,7 @@ on:
 jobs:
   kvm-vm:
     runs-on: ubuntu-latest
-    timeout-minutes: 9999
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
@@ -26,7 +26,8 @@ jobs:
             unzip \
             openssh-client \
             git \
-            sudo
+            sudo \
+            netcat-openbsd
           # Show KVM device info
           ls -l /dev/kvm || echo "/dev/kvm not available"
 
@@ -36,12 +37,23 @@ jobs:
       - name: Start VM in background
         run: |
           ./vm.sh >vm-console.log 2>&1 &
-          # give the VM some time to boot
-          sleep 90
+          echo $! > vm.pid
+
+      - name: Wait for SSH to be ready
+        run: |
+          for i in {1..15}; do
+            echo "Waiting for VM SSH (try $i)..."
+            if nc -z 127.0.0.1 24; then
+              echo "SSH is up!"
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "VM SSH did not come up in time"
+          exit 1
 
       - name: Test SSH into VM
         run: |
-          # disable host key checking
           ssh -o StrictHostKeyChecking=no -p 24 root@127.0.0.1 "echo 'Inside VM'; uname -a"
 
       - name: Upload console log
