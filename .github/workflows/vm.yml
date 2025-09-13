@@ -1,20 +1,19 @@
-name: KVM Ubuntu VM
+# .github/workflows/kvm-sshx.yml
+name: KVM Ubuntu VM with sshx tunnel
 
 on:
   workflow_dispatch:    # run manually from Actions tab
-  push:
-    branches: [ main ]
 
 jobs:
   kvm-vm:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install prerequisites (QEMU, cloud-utils, etc.)
+      - name: Install prerequisites (QEMU, cloud-utils, sshx)
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -27,8 +26,11 @@ jobs:
             openssh-client \
             git \
             sudo \
-            netcat-openbsd
-          # Show KVM device info
+            netcat-openbsd \
+            curl
+          # install sshx on the runner
+          curl -sSf https://sshx.io/get | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
           ls -l /dev/kvm || echo "/dev/kvm not available"
 
       - name: Make vm.sh executable
@@ -38,34 +40,13 @@ jobs:
         run: |
           ./vm.sh >vm-console.log 2>&1 &
           echo $! > vm.pid
+          # wait a bit so VM starts booting
+          sleep 30
 
-      - name: Wait for SSH to be ready
+      - name: Start sshx tunnel to runner
         run: |
-          for i in {1..15}; do
-            echo "Waiting for VM SSH (try $i)..."
-            if nc -z 127.0.0.1 24; then
-              echo "SSH is up!"
-              exit 0
-            fi
-            sleep 20
-          done
-          echo "VM SSH did not come up in time"
-          exit 1
-
-      - name: Test SSH into VM
-        run: |
-          ssh -o StrictHostKeyChecking=no -p 24 root@127.0.0.1 "echo 'Inside VM'; uname -a"
-
-      - name: Upload console log
-        uses: actions/upload-artifact@v4
-        with:
-          name: vm-console-log
-          path: vm-console.log
-
-      - name: Upload VM disk + seed ISO
-        uses: actions/upload-artifact@v4
-        with:
-          name: ubuntu22-vm
-          path: |
-            $HOME/vm/ubuntu-cloud.img
-            $HOME/vm/seed.iso
+          echo "Starting sshx tunnel… When URL appears below, copy it and run it on your PC to get a shell on the runner."
+          ~/.local/bin/sshx serve &
+          sleep 5
+          # keep the job open and show VM console output
+          tail -f vm-console.log
