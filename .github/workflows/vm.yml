@@ -1,62 +1,59 @@
-name: Playit VPS with SSHX Public Link
+name: KVM Ubuntu VM
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:    # run manually from Actions tab
+  push:
+    branches: [ main ]
 
 jobs:
-  playit-vps:
+  kvm-vm:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 9999
 
     steps:
-      - name: Install Docker
-        run: |
-          sudo apt update -y
-          sudo apt install -y curl unzip sshpass
-          curl -fsSL https://get.docker.com -o get-docker.sh
-          sudo sh get-docker.sh
-          docker --version
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Create entrypoint script
+      - name: Install prerequisites (QEMU, cloud-utils, etc.)
         run: |
-          echo '#!/bin/bash
-          apt update -y
-          apt install -y openssh-server wget unzip curl ca-certificates
-          mkdir -p /var/run/sshd
-          echo "root:root" | chpasswd
-          sed -i "s/#PermitRootLogin prohibit-password/PermitRootLogin yes/" /etc/ssh/sshd_config
-          /usr/sbin/sshd -D' > entrypoint.sh
-          chmod +x entrypoint.sh
+          sudo apt-get update
+          sudo apt-get install -y \
+            qemu-kvm \
+            qemu-system-x86 \
+            cloud-utils \
+            genisoimage \
+            wget \
+            unzip \
+            openssh-client \
+            git \
+            sudo
+          # Show KVM device info
+          ls -l /dev/kvm || echo "/dev/kvm not available"
 
-      - name: Start Ubuntu Container with SSH
-        run: |
-          docker pull ubuntu:22.04
-          docker run -d --name playit-container -p 2222:22 -v $PWD/entrypoint.sh:/entrypoint.sh ubuntu:22.04 /entrypoint.sh
+      - name: Make vm.sh executable
+        run: chmod +x vm.sh
 
-      - name: Wait for SSH
+      - name: Start VM in background
         run: |
-          echo "Waiting for SSH..."
-          for i in {1..30}; do
-            nc -zv localhost 2222 && break
-            echo "SSH not ready ($i/30)..."
-            sleep 5
-          done
-          echo "✅ SSH ready at root@localhost:2222 (password: root)"
+          ./vm.sh >vm-console.log 2>&1 &
+          # give the VM some time to boot
+          sleep 90
 
-      - name: Install SSHX and Extract Public Link inside Container
+      - name: Test SSH into VM
         run: |
-          sshpass -p root ssh -o StrictHostKeyChecking=no -p 2222 root@localhost bash <<'EOF'
-curl -sSf https://sshx.io/get | sh -s run
-sleep 10
-URL=$(grep -oE "https://sshx.io/[A-Za-z0-9]+" /root/sshx.log | head -n1)
-if [ -n "$URL" ]; then
-  echo "✅ Public Link: $URL"
-else
-  echo "⚠️ Link not found, check /root/sshx.log"
-fi
-EOF
+          # disable host key checking
+          ssh -o StrictHostKeyChecking=no -p 24 root@127.0.0.1 "echo 'Inside VM'; uname -a"
 
-      - name: Show VPS Logs
-        run: |
-          docker logs playit-container
-          sshpass -p root ssh -o StrictHostKeyChecking=no -p 2222 root@localhost "cat /root/sshx.log || true"
+      - name: Upload console log
+        uses: actions/upload-artifact@v4
+        with:
+          name: vm-console-log
+          path: vm-console.log
+
+      - name: Upload VM disk + seed ISO
+        uses: actions/upload-artifact@v4
+        with:
+          name: ubuntu22-vm
+          path: |
+            $HOME/vm/ubuntu-cloud.img
+            $HOME/vm/seed.iso
