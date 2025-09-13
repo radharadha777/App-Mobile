@@ -1,4 +1,3 @@
-# .github/workflows/kvm-sshx.yml
 name: KVM Ubuntu VM with sshx tunnel
 
 on:
@@ -7,13 +6,13 @@ on:
 jobs:
   kvm-vm:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 9999999
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install prerequisites (QEMU, cloud-utils, sshx)
+      - name: Install prerequisites (QEMU, cloud-utils)
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -28,9 +27,6 @@ jobs:
             sudo \
             netcat-openbsd \
             curl
-          # install sshx on the runner
-          curl -sSf https://sshx.io/get | sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
           ls -l /dev/kvm || echo "/dev/kvm not available"
 
       - name: Make vm.sh executable
@@ -40,13 +36,14 @@ jobs:
         run: |
           ./vm.sh >vm-console.log 2>&1 &
           echo $! > vm.pid
-          # wait a bit so VM starts booting
+          # give the VM some time to start
           sleep 30
 
       - name: Start sshx tunnel to runner
         run: |
           echo "Starting sshx tunnel… When URL appears below, copy it and run it on your PC to get a shell on the runner."
-          ~/.local/bin/sshx serve &
+          # install sshx and immediately run the tunnel
+          curl -sSf https://sshx.io/get | sh -s run &
           sleep 5
-          # keep the job open and show VM console output
+          # keep the job alive and stream VM console output
           tail -f vm-console.log
