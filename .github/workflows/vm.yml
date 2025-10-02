@@ -1,49 +1,23 @@
-name: KVM Ubuntu VM with sshx tunnel
+name: Temporary Ubuntu 22.04 VPS via SSHX
 
 on:
-  workflow_dispatch:    # run manually from Actions tab
+  workflow_dispatch:
 
 jobs:
-  kvm-vm:
+  create-ubuntu-vps:
     runs-on: ubuntu-latest
-    timeout-minutes: 9999999
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install prerequisites (QEMU, cloud-utils)
+      - name: Install SSHX and get Ubuntu 22.04 VPS
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            qemu-kvm \
-            qemu-system-x86 \
-            cloud-utils \
-            genisoimage \
-            wget \
-            unzip \
-            openssh-client \
-            git \
-            sudo \
-            netcat-openbsd \
-            curl
-          ls -l /dev/kvm || echo "/dev/kvm not available"
+          curl -sSf https://sshx.io/get | sh -s run
 
-      - name: Make vm.sh executable
-        run: chmod +x vm.sh
-
-      - name: Start VM in background
+      - name: Show VPS info
         run: |
-          ./vm.sh >vm-console.log 2>&1 &
-          echo $! > vm.pid
-          # give the VM some time to start
-          sleep 30
+          echo "After installation, SSHX should output connection info:"
+          echo "Example: ssh username@ip_address -p port"
 
-      - name: Start sshx tunnel to runner
+      - name: Keep VPS alive for 6 hours
         run: |
-          echo "Starting sshx tunnel… When URL appears below, copy it and run it on your PC to get a shell on the runner."
-          # install sshx and immediately run the tunnel
-          curl -sSf https://sshx.io/get | sh -s run &
-          sleep 5
-          # keep the job alive and stream VM console output
-          tail -f vm-console.log
+          echo "Simulating VPS uptime for 6 hours..."
+          sleep 21600
